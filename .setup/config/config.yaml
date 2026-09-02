@@ -76,14 +76,14 @@ cfg:
   ims_database_lock_manager_server_name: "IRLM"
   
   # DB2
-  db2_provision: "false"   # set to "true" to provision a new Db2 subsystem with zconfig
+  db2_provision: "true"    # ZDVT lifecycle-test branch: provision Db2 DBD2
   # When true, each environment run removes the zconfig-managed subsystem
   # before provisioning it again. This is destructive and requires
   # db2_provision: "true".
-  db2_reprovision: "false"
+  db2_reprovision: "true"
   db2_hlq: "DB2V13"
   db2_dsntep: "DSNTEP13"
-  db2_ssid: "DBD1"
+  db2_ssid: "DBD2"
   db2_runlib: "{{ cfg.db2_hlq }}.{{ cfg.db2_ssid }}.RUNLIB.LOAD"
   db2_sqlid: "{{ cfg.zos_current_user }}"
   db2_java_dir: "/usr/lpp/db2d10"
@@ -231,7 +231,7 @@ cics:
   cmci_port: 27100
   # Some ZDVT images pause CICS startup at the EZACIC20 PLT prompt.
   # Set to "true" only when automatically replying GO is appropriate.
-  auto_reply_go: "false"
+  auto_reply_go: "true"
   # CICS can take several minutes to bring CMCI online after startup.
   cmci_start_timeout_seconds: 300
   ipic_port: 4320
