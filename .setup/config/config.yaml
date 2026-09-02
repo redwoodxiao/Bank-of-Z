@@ -124,7 +124,7 @@ app:
 # Sandbox root directory (USS)
 sandbox:
   root: "{{ cfg.sandbox_root }}"
-  path: "{{ sandbox.root }}/bank-of-z"
+  path: "{{ sandbox.root }}/bank-of-z-zowe-test"
 
 # Zowe CLI configuration
 zowe:
