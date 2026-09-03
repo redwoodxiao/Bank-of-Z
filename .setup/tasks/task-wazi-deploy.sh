@@ -4,8 +4,8 @@ set -eu
 # Script  : task-wazi-deploy.sh
 # Summary : Wazi Deploy Generate + Deploy
 #
-# - Initializes execution environment
-# - Loads Wazi Deploy configuration from setenv.sh
+# - Relies on environment exported by pipeline-common.sh / setup-common.sh
+# - Loads Wazi Deploy configuration from inherited environment variables
 # - Creates timestamped output and evidence directories
 # - Executes wazideploy-generate
 # - Executes wazideploy-deploy
@@ -18,7 +18,8 @@ set -eu
 # Source library scripts
 # =========================
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPTS_DIR/../config/setenv.sh"
+source "$SCRIPTS_DIR/../lib/utilities.sh"
+source "$SCRIPTS_DIR/../lib/colors.sh"
 
 exec > >(while IFS= read -r line; do
     line="${line%"${line##*[![:space:]]}"}"
@@ -217,31 +218,6 @@ fi
 print_success "Deployment completed successfully"
 print_success "BankZ deployment completed successfully"
 
-# =========================
-# Restart z/OS Connect server to pick up newly deployed WARs.
-# applicationMonitor updateTrigger="mbean" means Liberty will not hot-reload
-# files on its own - an explicit restart is the reliable way to load new WARs.
-# =========================
-print_info "Restarting BAQ${APP_SHORT_NAME} to load newly deployed WARs..."
-opercmd "C BAQ${APP_SHORT_NAME}" 2>&1 >/dev/null || true
-if [[ "$ZOSCONNECT_SYS_PROCLIB" != "${APP_HLQ}.PROCLIB" ]]; then
-    opercmd "S BAQ${APP_SHORT_NAME}" 2>&1 >/dev/null || true
-else
-    jsub "${ZOSCONNECT_SYS_PROCLIB}(BAQ${APP_SHORT_NAME}J)" 2>&1 >/dev/null || true
-fi
-print_success "BAQ${APP_SHORT_NAME} restart issued - server will be ready in ~20 seconds"
-
-# =========================
-# Restart frontend Liberty server to pick up newly deployed frontend WAR.
-# =========================
-print_info "Restarting FE${APP_SHORT_NAME} to load newly deployed frontend WAR..."
-opercmd "C FE${APP_SHORT_NAME}" 2>&1 >/dev/null || true
-if [[ "$FRONTEND_SYS_PROCLIB" != "${APP_HLQ}.PROCLIB" ]]; then
-    opercmd "S FE${APP_SHORT_NAME}" 2>&1 > /dev/null || true
-else
-    jsub "${FRONTEND_SYS_PROCLIB}(FE${APP_SHORT_NAME}J)" 2>&1 >/dev/null || true
-fi
-print_success "FE${APP_SHORT_NAME} restart issued - server will be ready in ~20 seconds"
 
 # =========================
 # Cleanup

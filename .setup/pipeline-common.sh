@@ -99,6 +99,30 @@ stage_deploy_bank_of_z() {
 
 
 #########################################################
+# STAGE: Verify Installation
+#########################################################
+stage_verify_installation() {
+    print_stage "STAGE: Post-install Verification Tests"
+
+    if [ ! -f "$SCRIPTS_DIR/tasks/task-install-verification.sh" ]; then
+        print_error "Verification task not found: $SCRIPTS_DIR/tasks/task-install-verification.sh"
+        exit 1
+    fi
+
+    print_info "Running installation verification script..."
+    print_info "Executing: bash $SCRIPTS_DIR/tasks/task-install-verification.sh"
+    cd "$SCRIPTS_DIR"
+
+    set -o pipefail
+    if bash ${SCRIPTS_DIR}/tasks/task-install-verification.sh; then
+        print_success "Installation verification completed successfully"
+    else
+        print_error "Installation verification failed"
+        exit 1
+    fi
+}
+
+#########################################################
 # Main execution helpers
 #########################################################
 print_phase_next_step() {
@@ -126,12 +150,14 @@ print_usage() {
     echo "  build             Build the Bank of Z baseline"
     echo "  deploy            Deploy the Bank of Z baseline"
     echo "  build-and-deploy  Build and deploy the Bank of Z updates"
+    echo "  verify            Run post-install verification tests"
     echo ""
     echo "Examples:"
     echo "  bash pipeline-common.sh validate-prereqs"
     echo "  bash pipeline-common.sh build"
     echo "  bash pipeline-common.sh deploy"
     echo "  bash pipeline-common.sh build-and-deploy"
+    echo "  bash pipeline-common.sh verify"
 }
 
 print_phase_next_step() {
@@ -207,6 +233,19 @@ main_deploy() {
     print_success "DEPLOY setup completed successfully!"
 }
 
+main_verify() {
+    echo ""
+    SYS=$(uname -Ia)
+    print_info "Running on: $SYS"
+    echo ""
+
+    stage_verify_installation
+
+    # Summary
+    print_stage "VERIFICATION COMPLETE"
+    print_success "Installation verification completed successfully!"
+}
+
 #########################################################
 # Main execution
 #########################################################
@@ -220,6 +259,18 @@ main() {
     else
         # Detect Execution Mode
         detect_bank_of_z_location
+
+        # Re-anchor DBB and tool paths to the resolved repo location.
+        # setenv.sh bakes these in from config.yaml using the static sandbox
+        # path; when running in a pipeline workspace the resolved BANK_DIR
+        # differs from that static path, so we override them here.
+        export DBB_CWD="${BANK_DIR}/"
+        export DBB_APP_CONF="${BANK_DIR}/dbb-app.yaml"
+        export SCAN_SOURCE_FOLDER="${BANK_DIR}/src/base"
+        export SCAN_RULE_FILE="${BANK_DIR}/zcodescan/zcodescan-rules.yaml"
+        export DEPLOY_DEPLOYMENT_METHOD="${BANK_DIR}/.setup/deploy/deployment-method.yml"
+        export DEPLOY_ENV_FILE="${BANK_DIR}/.setup/deploy/Development.yml"
+        export DEPLOY_TYPES_MAPPING_FILES="${BANK_DIR}/.setup/deploy/types_pattern_mapping.yml"
     fi
     
     case "$phase" in
@@ -247,6 +298,9 @@ main() {
             main_static_scan
             main_build "$@"
             main_deploy
+            ;;
+        verify)
+            main_verify
             ;;
         -h|--help|help|"")
             print_usage
