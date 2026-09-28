@@ -32,6 +32,7 @@ exec > >(while IFS= read -r line; do
     [[ -z "$line" ]] && continue
     printf "${CYAN}[GENCERT]${NC} %s\n" "${line}" 2>/dev/null || true
 done) 2>&1
+trap 'exec >&- 2>&-; wait' EXIT
 
 set -e  # Exit immediately on any non-zero return code
 
@@ -86,11 +87,8 @@ fi
 # -----------------------------------------------------------------------
 # Guard: verify IP and DNS can be determined
 # -----------------------------------------------------------------------
-ipaddr=$(netstat -h 2>/dev/null |
-  awk '
-    /IntfName:[[:space:]]*(TCPIPLINK|OSA[0-9]+)/ { intf=$2 }
-    /Address:/ && intf { print $2; exit }
-  ')
+
+ipaddr=$(get_ipaddr)
 dnsname=$(hostname 2>/dev/null)
 
 if [ -z "$ipaddr" ] || [ -z "$dnsname" ]; then

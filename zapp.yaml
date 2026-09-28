@@ -9,12 +9,21 @@ description: >-
 author: IBM Z Open Editor
 
 propertyGroups:
-  - name: search-all
+  - name: search-all-local
     libraries:
       - name: syslib
         type: local
         locations:
           - '**'
+  - name: remote-libraries
+    language: cobol
+    compilerOptions: CICS
+    libraries:
+        - name: syslib
+          type: mvs
+          locations:
+             - BANKZ.DBB.BMS.COPY    # default name when running bank-of-z setup
+             - CICSTS63.CICS.SDFHCOB
 
 profiles:
   # TAZ
@@ -43,7 +52,6 @@ profiles:
       lifecycle: user
       lifecycleArgs:
         - "--hlq ${dbbHlq}"
-        - "--config ${dbbWorkspace}/${dbbApplication}/dbb-app_ub.yaml"
         - "--errPrefix ${errPrefix}" # Requires advanced capabilities
         - "--verbose"
       additionalDependencies:

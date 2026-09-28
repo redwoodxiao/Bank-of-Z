@@ -42,6 +42,8 @@
     url: /docs/installation-and-setup/local-tools/grub-setup.html
   - title: Verification
     url: /docs/installation-and-setup/verification.html
+  - title: Operations Context and Repeatable Deployment
+    url: /docs/installation-and-setup/operations-context.html
 - title: Tutorials
   url: /docs/tutorials/
   children:
@@ -49,6 +51,10 @@
     url: /docs/tutorials/deploy-bank-of-z.html
   - title: CICS Enhancement Scenario
     url: /docs/tutorials/cics-enhancement-scenario.html
+  - title: CICS Debugging
+    url: /docs/tutorials/cics-debug.html
+  - title: IMS Enhancement Scenario
+    url: /docs/tutorials/ims-enhancement.html
   - title: Incremental Build
     url: /docs/tutorials/incremental-build.html
 - title: Development Workflows
@@ -79,4 +85,3 @@
  
 
  
-

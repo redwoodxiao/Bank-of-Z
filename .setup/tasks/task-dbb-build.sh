@@ -20,13 +20,15 @@ set -eu
 # Source library scripts
 # =========================
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPTS_DIR/../config/setenv.sh"
+source "$SCRIPTS_DIR/../lib/utilities.sh"
+source "$SCRIPTS_DIR/../lib/colors.sh"
 
 exec > >(while IFS= read -r line; do
     line="${line%"${line##*[![:space:]]}"}"
     [[ -z "$line" ]] && continue
     printf "${CYAN}[DBB-BUILD]${NC} %s\n" "${line}"
 done) 2>&1
+trap 'exec >&- 2>&-; wait' EXIT
 
 # =========================
 # Environment
