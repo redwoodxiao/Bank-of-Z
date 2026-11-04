@@ -20,6 +20,7 @@ exec > >(while IFS= read -r line; do
     [[ -z "$line" ]] && continue
     printf "${CYAN}[POPULATE-IMS-TABLES]${NC} %s\n" "${line}" 2>/dev/null || true
 done) 2>&1
+trap 'exec >&- 2>&-; wait' EXIT
 
 # =========================
 # Environment
@@ -30,7 +31,7 @@ export LIBPATH="$ZOAU_HOME/lib:${LIBPATH:-}"
 # =========================
 # Populate IMS tables
 # =========================
-for file in ${SANDBOX_DIR}/${REPO_NAME}/src/base/ims/LoadData/*.data; do
+for file in ${SANDBOX_DIR}/${ROOT_FOLDER_NAME}/src/base/ims/LoadData/*.data; do
     name=$(basename $file .data)
     set +e
     drm ${IMS_APP_HLQ}.${name}.INPUT 2>/dev/null

@@ -52,19 +52,7 @@ A successful response confirms that the workstation can communicate with the tar
 
 ## Verify target environment
 
-Confirm that the required IBM Z platform components are available.
-
-Verify that the following platform components are available:
-
-- z/OS 3.1 or later
-- CICS
-- IMS Transaction Manager (IMS TM)
-- IMS DB
-- Db2 for z/OS
-- z/OS Connect Enterprise Edition
-- IBM MQ
-
-If any required subsystem is unavailable, contact your system administrator before proceeding.
+Confirm that the required z/OS services and middleware components referenced in the [Prerequisites](prerequisites.md) are available. If any required services are unavailable, contact your system administrator.
 
 ## Verify application deployment
 
@@ -78,6 +66,7 @@ Verify that the following application resources have been deployed successfully:
 - CICS resources are active
 - z/OS Connect API artifacts have been deployed
 - Required configuration resources are available
+- MQ queues have been configured, and CICS and IMS bridges are active
 
 ## Verify application access
 
@@ -90,6 +79,7 @@ Typical validation activities include:
 - Viewing account details
 - Executing account transactions
 - Invoking deployed z/OS Connect APIs
+- Testing the Bank of Q Java code
 
 Successful run confirms that the deployed components are communicating correctly.
 

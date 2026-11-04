@@ -23,6 +23,7 @@ exec > >(while IFS= read -r line; do
     [[ -z "$line" ]] && continue
     printf "${CYAN}[ZOSCONNECT]${NC} %s\n" "${line}" 2>/dev/null || true
 done) 2>&1
+trap 'exec >&- 2>&-; wait' EXIT
 
 # =========================
 # Helper: verify a config file was written successfully
@@ -74,7 +75,6 @@ fi
 # =========================
 set +e
 opercmd "C BAQ${APP_SHORT_NAME}" 2>/dev/null
-jcan P "${ZOSCONNECT_SYS_PROCLIB}(BAQ${APP_SHORT_NAME})" 2>/dev/null || true
 sleep 5
 mrm "${ZOSCONNECT_SYS_PROCLIB}(BAQ${APP_SHORT_NAME})" 2>/dev/null || true
 set -e
@@ -252,10 +252,6 @@ CORS_DEST="${OVERRIDES_DIR}/cors.xml"
 cat > "${CORS_DEST}" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <server description="CORS configuration for frontend server">
-    <featureManager>
-        <feature>cors-1.0</feature>
-    </featureManager>
-
     <!-- Allow requests from frontend Liberty server (HTTP and HTTPS ports) -->
     <cors domain="/api"
           allowedOrigins="http://*:${FRONTEND_HTTP_PORT}, https://*:${FRONTEND_HTTPS_PORT}"
@@ -308,7 +304,7 @@ if [[ "$ZOSCONNECT_SYS_PROCLIB" != "${APP_HLQ}.PROCLIB" ]]; then
     print_info "  Stop:   opercmd 'C BAQ${APP_SHORT_NAME}'"
 else
     print_info "  Start:  jsub '${ZOSCONNECT_SYS_PROCLIB}(BAQ${APP_SHORT_NAME}J)'"
-    print_info "  Stop:   jcan P 'BAQ${APP_SHORT_NAME}'"
+    print_info "  Stop:   opercmd 'C BAQ${APP_SHORT_NAME}'"
 fi
 print_info ""
 

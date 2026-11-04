@@ -26,7 +26,7 @@ The **global** section contains the primary configuration values required to con
 |---|---|---|
 | `sandbox_root` | `/usr/local/sandboxes` | Root directory of the sandbox |
 
-### Application 
+### Application
 
 | Variable | Default Value | Description |
 |---|---|---|
@@ -117,6 +117,18 @@ The **global** section contains the primary configuration values required to con
 | `db2_java_dir` | `/usr/lpp/db2d10` | DB2 Java installation path |
 | `db2_grants` | `CICSUSER` | List of DB2 grantees |
 
+### MQ
+
+| Variable | Default Value | Description |
+|---|---|---|
+| `mq_qmgr_name` | `MQ21` | Queue manager name |
+| `mq_install_hlq` | `MQCD94` | High-level qualifier for MQ install |
+| `mq_qmgr_hlq` | `CSQ.{{ mq.qmgr_name }}` | High-level qualifier for queue manager configuration  |
+| `mq_cpf` | `!{{ mq.qmgr_name }}` | Queue manager command prefix |
+| `mq_proclib` | `SYS1.PROCLIB` | Proclib for queue manager JCL |
+| `mq_otma_group` | `IMSXCFGN` | OTMA XCF group name for IMS bridge |
+| `mq_otma_ims` | `{{ global.ims_datastore }}` | IMS XCF member name for the IMS bridge |
+
 ## Sections settings
 
 ### Sandbox configuration
@@ -128,7 +140,7 @@ The `app` section defines application naming conventions used for datasets, reso
 ### DBB configuration
 The `dbb` section identifies the IBM Dependency Based Build (DBB) installation.
 
-Depending on your environment and tooling requirements, additional configuration sections can be defined.
+Depending on your environment and deployment requirements, additional configuration sections can be defined.
 
 ### Repository configuration
 Defines repositories that are cloned during setup.
@@ -165,7 +177,7 @@ dbb:
   dbb_build: ${sandbox.path}/Bank-of-Z/.setup/build
 ```
 
-Variables are resolved during setup processing.
+Variables are resolved automatically during setup.
 
 Environment variables can also be referenced:
 
@@ -179,7 +191,7 @@ cics:
 
 ## Validation rules
 
-The setup process validates configuration values before run.
+The setup process validates the configuration before it runs.
 
 Validation includes:
 

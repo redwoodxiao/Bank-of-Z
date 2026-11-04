@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=./cics_region_0.7.0.schema.json
+# yaml-language-server: $schema=./cics_region_0.9.0.schema.json
 vars:
   applid: "CICSBOZ"
   sysid: "CBOZ"
@@ -9,10 +9,17 @@ vars:
   cics_hlq: "CICSTS63"
   cics_uss_dir: "/usr/lpp/cicsts/cicsts63"
   db2_hlq: "DB2V13"
-  eqaw_hlq: "EQAW.SEQAMOD"
+  debug_hlq: "EQAW"
   tcpip_hlq: "TCPIP"
   cics_sec: "YES"
   db2_ssid: "DBD1"
+  db2_provision: "false"
+  mq_qmgr_name: "MQ21"
+  mq_install_hlq: "MQCD94"
+  proclib: "SYS1.PROCLIB"
+  cics_ipic_port: 4320
+  cics_debug_port: 27103
+  jcl_type: "PROC"
 
 cics_region:
   applid: "{{ vars.applid }}"
@@ -38,8 +45,9 @@ cics_region:
   region_hlq: "{{ vars.region_hlq }}.{{ vars.applid }}"
 
   region_jcl:
-    type: JOB
-    job_parameters:
+    type: "{{ vars.jcl_type }}"
+    dsn: "{{ vars.proclib }}({{ vars.applid }})"
+    cics_exec_step_parameters:
       region: 0M
     dfhrpl:
       top_data_sets:
@@ -48,10 +56,14 @@ cics_region:
         - SYS1.SIEAMIGE
         - SYS1.MIGLIB
         - "{{ vars.tcpip_hlq }}.SEZATCP"
+        - "{{ vars.mq_install_hlq }}.SCSQLOAD"
+        - "{{ vars.mq_install_hlq }}.SCSQAUTH"
     steplib:
       top_data_sets:
         - "{{ vars.db2_hlq }}.SDSNLOAD"
         - "{{ vars.db2_hlq }}.SDSNEXIT"
+      data_sets:
+        - "{{ vars.mq_install_hlq }}.SCSQAUTH"
 
   sit_parameters:
     start: INITIAL
@@ -60,9 +72,9 @@ cics_region:
     gmtran: CESL
     sec: "{{ vars.cics_sec }}"
     db2conn: "YES"
+    mqconn: "YES"
     securetcpip: "NO"
     ussconfig: "{{ vars.region_uss_dir }}/{{ vars.applid }}/config"
-    resoverrides: resourceOverrides.cicsoverrides.yaml
     xtran: "NO"
     xcmd: "NO"
     xdb2: "NO"
@@ -72,11 +84,17 @@ cics_region:
     xtst: "NO"
     xdct: "NO"
     tcpip: "YES"
+    initparm:
+      eqa0cplt: "NWP,NLE,DTR"
 
   startup_programs:
-    third_phase:
+    second_phase:
       - EZACIC20
       - EQA0CPLT
+
+  shutdown_programs:
+    first_phase:
+      - EZACIC20
 
   extensions:
     cics_cmci:

@@ -4,8 +4,8 @@ set -eu
 # Script  : task-wazi-deploy.sh
 # Summary : Wazi Deploy Generate + Deploy
 #
-# - Initializes execution environment
-# - Loads Wazi Deploy configuration from setenv.sh
+# - Relies on environment exported by pipeline-common.sh / setup-common.sh
+# - Loads Wazi Deploy configuration from inherited environment variables
 # - Creates timestamped output and evidence directories
 # - Executes wazideploy-generate
 # - Executes wazideploy-deploy
@@ -18,13 +18,18 @@ set -eu
 # Source library scripts
 # =========================
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPTS_DIR/../config/setenv.sh"
+source "$SCRIPTS_DIR/../lib/utilities.sh"
+source "$SCRIPTS_DIR/../lib/colors.sh"
+if [ -z "${APP_HLQ:-}" ]; then
+    source "$SCRIPTS_DIR/../config/setenv.sh"
+fi
 
 exec > >(while IFS= read -r line; do
     line="${line%"${line##*[![:space:]]}"}"
     [[ -z "$line" ]] && continue
     printf "${CYAN}[WAZIDEPLOY]${NC} %s\n" "${line}"
 done) 2>&1
+trap 'exec >&- 2>&-; wait' EXIT
 
 cd $SCRIPTS_DIR
 # =========================
@@ -40,13 +45,13 @@ export DEPLOY_TEMPLATES_PATH="$SCRIPTS_DIR/../deploy"
 # Output directories
 # =========================
 timestamp=$(date +%F_%H-%M-%S)
-outputDir="${DEPLOY_LOG_FOLDER}"
-evidenceDir="${outputDir}/evidences"
-LOG_TAR="${outputDir}/wazi-deploy-log.tar"
-EVIDENCE_FILE="${evidenceDir}/evidence.yaml"
+OUTPUT_FOLDER="${DEPLOY_LOG_FOLDER}"
+EVIDENCE_FOLDER="${OUTPUT_FOLDER}/evidences"
+LOG_TAR="${OUTPUT_FOLDER}/wazi-deploy-log.tar"
+EVIDENCE_FILE="${EVIDENCE_FOLDER}/evidence.yaml"
 
-rm -rf "$outputDir" "$evidenceDir"
-mkdir -p "$outputDir" "$evidenceDir"
+rm -f "$OUTPUT_FOLDER"/* 2>/dev/null || true
+mkdir -p "$OUTPUT_FOLDER" "$EVIDENCE_FOLDER"
 
 # =========================
 # Finalize: always publish log tar on exit
@@ -54,24 +59,18 @@ mkdir -p "$outputDir" "$evidenceDir"
 finalize_results() {
     RC=$?
 
-    mkdir -p "$outputDir" "$evidenceDir"
-    cd "$outputDir"
+    mkdir -p "$OUTPUT_FOLDER" "$EVIDENCE_FOLDER"
+    cd "$OUTPUT_FOLDER"
 
     if ls wazideploy*.log >/dev/null 2>&1; then
-        chtag -tc IBM-1047 wazideploy*.log
-        # Convert BankZ logs if they exist
-        [ -f "$outputDir/wazideploy-generate-bankz.console.log" ] && \
-            a2e -f IBM-1047 -t ISO8859-1 "$outputDir/wazideploy-generate-bankz.console.log"
-        [ -f "$outputDir/wazideploy-deploy-bankz.console.log" ] && \
-            a2e -f IBM-1047 -t ISO8859-1 "$outputDir/wazideploy-deploy-bankz.console.log"
-        tar cf "$LOG_TAR" "logs" 2>/dev/null || true
+        tar cf "$LOG_TAR" "$OUTPUT_FOLDER" 2>/dev/null || true
     else
-        echo "No Wazi Deploy logs found" > "$outputDir/wazi-deploy-console.log"
-        tar cf "$LOG_TAR" "logs" 2>/dev/null || true
+        echo "No Wazi Deploy logs found" > "$OUTPUT_FOLDER/wazi-deploy-console.log"
+        tar cf "$LOG_TAR" "$OUTPUT_FOLDER" 2>/dev/null || true
     fi
+    chtag -b "$LOG_TAR"
 
     print_result "[LOG-PATH] $LOG_TAR"
-
 
     if [ $RC -eq 0 ]; then
         print_success "Process completed"
@@ -84,11 +83,11 @@ finalize_results() {
 
 trap finalize_results EXIT
 
-rm -rf "$outputDir"
-mkdir -p "$outputDir" "$evidenceDir"
+rm -rf "$OUTPUT_FOLDER"
+mkdir -p "$OUTPUT_FOLDER" "$EVIDENCE_FOLDER"
 
-print_info "Output directory  : $outputDir"
-print_info "Evidence directory: $evidenceDir"
+print_info "Output directory  : $OUTPUT_FOLDER"
+print_info "Evidence directory: $EVIDENCE_FOLDER"
 
 # =========================
 # Skip if no package
@@ -135,19 +134,19 @@ print_info "BankZ Deployment"
 print_info "========================================="
 
 print_info "Starting wazideploy-generate for BankZ"
-
+: > "${OUTPUT_FOLDER}/wazideploy-generate-bankz.console.log"
 CMD="wazideploy-generate \
  --deploymentPlanName $APP_BASE_NAME \
  --deploymentPlanVersion $APP_FULL_VERSION \
  --deploymentMethod $DEPLOY_DEPLOYMENT_METHOD \
- --deploymentPlan $outputDir/deploymentPlan-bankz.yaml \
- --deploymentPlanReport $outputDir/deploymentPlanReport-bankz.html \
+ --deploymentPlan $OUTPUT_FOLDER/deploymentPlan-bankz.yaml \
+ --deploymentPlanReport $OUTPUT_FOLDER/deploymentPlanReport-bankz.html \
  --packageInputFile $PACKAGE_URL"
 
 print_info "Executing command:"
 print_info "\t$CMD"
 
-${CMD}  --deploymentPlanDescription "$APP_DESCRIPTION" 2>&1 | tee "${outputDir}/wazideploy-generate-bankz.console.log" | while IFS= read -r line
+${CMD}  --deploymentPlanDescription "$APP_DESCRIPTION" 2>&1 | tee "${OUTPUT_FOLDER}/wazideploy-generate-bankz.console.log" | while IFS= read -r line
 do
     print_info "[GENERATE-${APP_BASE_NAME} $line"
 done
@@ -171,17 +170,27 @@ if [ -n "${CICS_PASSWORD:-}" ]; then
 fi
 
 # Resolve environment varaiables in config file.
-export TMPL_CONFIG_FILE="/tmp/config.yaml"
+export TMPL_CONFIG_FILE="/tmp/wazideploy-config.yaml"
 cp  "$CONFIG_FILE" "$TMPL_CONFIG_FILE.j2.$$"
 python "$SCRIPTS_DIR/../lib/render_template.py" --configFile $CONFIG_FILE \
     --templateFile "$TMPL_CONFIG_FILE.j2.$$"  --outputFile "$TMPL_CONFIG_FILE"
 
 rm -rf "${DEPLOY_LOG_FOLDER}/work-bankz"
 
+# Keep the ordinary IMS deployment profile unchanged. Generate the ACB-space
+# workaround only for a Bank installation that explicitly provisions Db2.
+deployment_env_file="$DEPLOY_ENV_FILE"
+if [[ "${DB2_PROVISION:-false}" == "true" ]]; then
+    deployment_env_file="$OUTPUT_FOLDER/Development-db2.yml"
+    "$PYTHON_HOME/bin/python3" "$SCRIPTS_DIR/../lib/db2_provisioning.py" deployment-environment \
+        "$DEPLOY_ENV_FILE" "$deployment_env_file"
+    chtag -tc UTF-8 "$deployment_env_file"
+fi
+
 CMD="wazideploy-deploy \
  --workingFolder ${DEPLOY_LOG_FOLDER}/work-bankz \
- --deploymentPlan $outputDir/deploymentPlan-bankz.yaml \
- --envFile $DEPLOY_ENV_FILE \
+ --deploymentPlan $OUTPUT_FOLDER/deploymentPlan-bankz.yaml \
+ --envFile $deployment_env_file \
  -e script_dir=$SCRIPTS_DIR \
  -e @$TMPL_CONFIG_FILE \
  -e application=$APP_BASE_NAME \
@@ -191,7 +200,7 @@ CMD="wazideploy-deploy \
  -e sandbox_path=$SANDBOX_DIR \
  $CICS_CREDS \
  --packageInputFile $PACKAGE_URL \
- --evidencesFileName ${evidenceDir}/evidence-bankz.yaml $@"
+ --evidencesFileName ${EVIDENCE_FOLDER}/evidence-bankz.yaml $@"
 
 if [[ "$IMS_DISABLED" == "true" ]]; then
  CMD="$CMD -pst ims"
@@ -199,10 +208,9 @@ fi
 
 rm -f message.log
 
-print_info "Executing command:"
-print_info "\t$CMD"
-
-${CMD} 2>&1 | tee "${outputDir}/wazideploy-deploy-bankz.console.log" | while IFS= read -r line
+print_info "Executing deployment command (credential arguments omitted)"
+: > "${OUTPUT_FOLDER}/wazideploy-deploy-bankz.console.log"
+${CMD} 2>&1 | tee "${OUTPUT_FOLDER}/wazideploy-deploy-bankz.console.log" | while IFS= read -r line
 do
     print_info "[DEPLOY-${APP_BASE_NAME}] $line"
 done
@@ -217,37 +225,12 @@ fi
 print_success "Deployment completed successfully"
 print_success "BankZ deployment completed successfully"
 
-# =========================
-# Restart z/OS Connect server to pick up newly deployed WARs.
-# applicationMonitor updateTrigger="mbean" means Liberty will not hot-reload
-# files on its own - an explicit restart is the reliable way to load new WARs.
-# =========================
-print_info "Restarting BAQ${APP_SHORT_NAME} to load newly deployed WARs..."
-opercmd "C BAQ${APP_SHORT_NAME}" 2>&1 >/dev/null || true
-if [[ "$ZOSCONNECT_SYS_PROCLIB" != "${APP_HLQ}.PROCLIB" ]]; then
-    opercmd "S BAQ${APP_SHORT_NAME}" 2>&1 >/dev/null || true
-else
-    jsub "${ZOSCONNECT_SYS_PROCLIB}(BAQ${APP_SHORT_NAME}J)" 2>&1 >/dev/null || true
-fi
-print_success "BAQ${APP_SHORT_NAME} restart issued - server will be ready in ~20 seconds"
-
-# =========================
-# Restart frontend Liberty server to pick up newly deployed frontend WAR.
-# =========================
-print_info "Restarting FE${APP_SHORT_NAME} to load newly deployed frontend WAR..."
-opercmd "C FE${APP_SHORT_NAME}" 2>&1 >/dev/null || true
-if [[ "$FRONTEND_SYS_PROCLIB" != "${APP_HLQ}.PROCLIB" ]]; then
-    opercmd "S FE${APP_SHORT_NAME}" 2>&1 > /dev/null || true
-else
-    jsub "${FRONTEND_SYS_PROCLIB}(FE${APP_SHORT_NAME}J)" 2>&1 >/dev/null || true
-fi
-print_success "FE${APP_SHORT_NAME} restart issued - server will be ready in ~20 seconds"
 
 # =========================
 # Cleanup
 # =========================
-print_info "Cleaning up package file"
+print_info "Archiving deployed package; retaining build package for redeployment"
 rm -f $TMPL_CONFIG_FILE
-mv -f "$PACKAGE_URL" "$PACKAGE_URL.deployed"
+cp -p "$PACKAGE_URL" "$PACKAGE_URL.deployed"
 
 print_success "Wazi Deploy process completed successfully"

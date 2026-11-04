@@ -21,6 +21,7 @@ exec > >(while IFS= read -r line; do
     [[ -z "$line" ]] && continue
     printf "${CYAN}[ZCONFIG-IMS]${NC} %s\n" "${line}" 2>/dev/null || true
 done) 2>&1
+trap 'exec >&- 2>&-; wait' EXIT
 
 # =========================
 # Environment
@@ -28,15 +29,23 @@ done) 2>&1
 export ZCONFIG_HOME=$(echo "$ZCONFIG_HOME" | sed "s|~|$HOME|g")
 export PATH="$ZOAU_HOME/bin:$PATH"
 export LIBPATH="$ZOAU_HOME/lib:${LIBPATH:-}"
+export BOZ_IMS_HLQ="${IMS_APP_HLQ}"
 
 # =========================
 # Stop IBM BOZ regions
 # =========================
+print_info "Stopping IMS ${APP_BASE_NAME} regions .."
 set +e
+# Delete stale stop members so jsub fails silently rather than executing
+# outdated JCL that may reference deleted datasets. Members are rebuilt
+# correctly by setup-ims-bankz-regions.sh on the next full provision.
+mrm "${IMS_APP_HLQ}.JOBS(STOPMPP1)" 2>/dev/null || true
+mrm "${IMS_APP_HLQ}.JOBS(STOPMPP2)" 2>/dev/null || true
+mrm "${IMS_APP_HLQ}.IMSJAVA.JOBS(STOPJMP)" 2>/dev/null || true
 jsub "${IMS_APP_HLQ}.JOBS(STOPMPP1)"  2>/dev/null
 jsub "${IMS_APP_HLQ}.JOBS(STOPMPP2)"  2>/dev/null
 jsub "${IMS_APP_HLQ}.IMSJAVA.JOBS(STOPJMP)"  2>/dev/null
-sleep 5
+sleep 20
 jcan P "${IMS_DATASTORE}JMP1" 2>/dev/null
 jcan P "${IMS_DATASTORE}MPP1" 2>/dev/null
 jcan P "${IMS_DATASTORE}MPP2" 2>/dev/null
@@ -89,7 +98,14 @@ IMS_USER=$(printf '%s' "${IMS_USER}" | tr '[:lower:]' '[:upper:]')
 IMS_USER_LOWER=$(printf '%s' "${IMS_USER}" | tr '[:upper:]' '[:lower:]')
 print_info "Setting IMS user to ${IMS_USER} (USS: ${IMS_USER_LOWER})"
 
-zconfig apply -e ims_user="${IMS_USER}" \
+# zconfig instrumentation
+export ZCONFIG_CONSUMER=${ZCONFIG_CONSUMER:-"Bank-of-Z"}
+IMS_ZCONFIG_COMMAND=(zconfig)
+if [[ "${DB2_PROVISION:-false}" == "true" ]]; then
+    # Limit the image-specific startup workaround to new Db2 installations.
+    IMS_ZCONFIG_COMMAND=(python3 "$SCRIPTS_DIR/../lib/ims_provisioning.py")
+fi
+"${IMS_ZCONFIG_COMMAND[@]}" apply -e ims_user="${IMS_USER}" \
               -e ims_user_lower="${IMS_USER_LOWER}" \
               -e imsid="${IMS_DATASTORE}" -e ims_hlq="${IMS_APP_HLQ}" \
               -e ims_plex="${IMS_PLEX}" \
@@ -99,9 +115,14 @@ zconfig apply -e ims_user="${IMS_USER}" \
               -e db2_java_dir="${DB2_JAVA_FOLDER}" \
               -e ims_java_dir="${IMS_JAVA_FOLDER}" \
               -e ims_java_home="${IMS_JAVA_HOME}" \
+              -e ims_java_conf_path="${IMS_JAVA_CONF_PATH}" \
               -e db2_ssid="${DB2_SSID}" \
+              -e debug_hlq="${DEBUG_HLQ}" \
+              -e debug_stc_user="${DEBUG_STC_USER}" \
               -e ims_target_user="${IMS_USER}" \
               -e ims_ixvolser="${IMS_IXVOLSER}" \
+              -e ims_irlm_enablement="${IMS_IRLM_ENABLEMENT:-false}" \
+              -e ims_database_lock_manager_server_name="${IMS_DATABASE_LOCK_MANAGER_SERVER_NAME:-IRLM}" \
               ims-region.yaml -v
 
 RC=$?
@@ -112,6 +133,9 @@ else
     print_error "Check logs in: $SCRIPTS_DIR/logs"
     exit 1
 fi
+
+# ACBLIB is mandatory (even empty) for some IMS utilities PROC
+tsocmd "ALLOCATE DATASET('${IMS_APP_HLQ}.ACBLIB') NEW CATALOG DSORG(PO) RECFM(U) BLKSIZE(32760) CYLINDERS SPACE(10,5) DIR(50)" 2> /dev/null || true
 
 deactivate
 

@@ -3,13 +3,18 @@
 /.bob/*.json
 /.setup/.env
 .env
+
 provisioning/
 /.pydevproject
 build.log
 /bin/
+*.class
 /logs/
 .DS_Store
 src/base/ims/java/src/main/java/nazare/jmp/standalone/*
+src/base/ims/java/bin/*
+edt-unit-test/*
+.edt-unit-test/*
 /build/
 zowe.config.user.json
 /.host.yaml
@@ -29,3 +34,6 @@ scripts/update-frontend-file-zos.sh
 **/.taz-edt/
 **/datasets.yaml
 .gradle/
+.bobz
+.zopeneditor/
+zos-downloads/

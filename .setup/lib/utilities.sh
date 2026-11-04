@@ -257,17 +257,20 @@ load_config() {
 #   - unknown
 # ============================================================
 detect_bank_of_z_location() {
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    
     local IN_REPO=false
     # Detect if we're already in the Bank-of-Z repository
-    print_stage "Detecting Bank of Z location..."
+    print_stage "Detecting Bank of Z location: $script_dir ..."
     
     # Check if current directory is a git repo and if it's Bank-of-Z
-    if git rev-parse --git-dir > /dev/null 2>&1; then
-        local repo_name=$(basename "$(git rev-parse --show-toplevel)")
+    if git  -C "$script_dir" rev-parse --git-dir > /dev/null 2>&1; then
+        local repo_name=$(basename "$(git  -C $script_dir rev-parse --show-toplevel)")
         if [[ "$repo_name" =~ ^Bank-of-Z ]]; then
             IN_REPO=true
             EXECUTION_MODE="grub"
-            BANK_DIR="$(git rev-parse --show-toplevel)"
+            BANK_DIR="$(git -C $script_dir rev-parse --show-toplevel)"
             print_info "Running from within Bank-of-Z repository"
             print_info "Repository location: $BANK_DIR"
             print_success "Using current repository (GRUB workflow detected)"
@@ -315,4 +318,46 @@ run_tso() {
         set -e
     fi
     return $rc
+}
+
+# Retrieve the local IP address using DNS routing first,
+# then fall back to OSA and TCPIPLINK network interfaces.
+get_ipaddr() {
+    local ipaddr=""
+
+    ipaddr=$(python3 -c "
+import socket
+
+for dns_server in ('8.8.8.8', '9.9.9.9'):
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(2)
+        s.connect((dns_server, 53))
+        ipaddr = s.getsockname()[0]
+        s.close()
+        if ipaddr:
+            print(ipaddr)
+            break
+    except OSError:
+        pass
+")
+
+    if [ -z "$ipaddr" ]; then
+        ipaddr=$(/bin/netstat -h 2>/dev/null |
+            awk '$1=="IntfName:" && $2 ~ /^OSA[0-9]+$/ {f=1; next}
+                 f && $1=="Address:" {print $2; exit}')
+    fi
+
+    if [ -z "$ipaddr" ]; then
+        ipaddr=$(/bin/netstat -h 2>/dev/null |
+            awk '$2 ~ /^OSA[0-9]+$/ {print $1; exit}')
+    fi
+
+    if [ -z "$ipaddr" ]; then
+        ipaddr=$(/bin/netstat -h 2>/dev/null |
+            awk '$1=="IntfName:" && $2=="TCPIPLINK" {f=1; next}
+                 f && $1=="Address:" {print $2; exit}')
+    fi
+
+    printf '%s\n' "$ipaddr"
 }

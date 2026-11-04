@@ -5,7 +5,7 @@ title: Deploying Bank of Z
 
 # Deploying Bank of Z
 
-Deploying Bank of Z provisions a complete application environment on z/OS, including CICS, IMS, z/OS Connect, a Liberty frontend server, and all application data. The process is fully automated once you have cloned the repository and configured it for your environment.
+Deploying Bank of Z provisions a complete application environment on z/OS, including CICS, IMS, MQ, z/OS Connect, a Liberty frontend server, and all application data. The process is fully automated once you have cloned the repository and configured it for your environment.
 
 ## Choose a deployment workflow
 
@@ -23,14 +23,14 @@ Clone the repository to your local machine, then use the provided Zowe CLI scrip
 
 > **Note:** The script clones your branch from GitHub on USS. Your branch must be pushed to the remote before running the script. Local commits that have not been pushed are not included.
 
-→ [Deploy Using Zowe CLI](deploy-zowe-cli.html)  
+→ [Deploy Using Zowe CLI](deploy-zowe-cli.html)
 → [Zowe CLI Setup](local-tools/zowe-cli-setup.html)
 
 ### GRUB
 
 Clone the repository to your local machine, then use GRUB to transfer your local branch directly to z/OS USS and run the deployment scripts automatically. No commit or push to a remote is required before deploying.
 
-→ [Deploy Using GRUB](deploy-grub.html)  
+→ [Deploy Using GRUB](deploy-grub.html)
 → [GRUB Setup](local-tools/grub-setup.html)
 
 ---
@@ -45,7 +45,7 @@ All three workflows run the same three stages, each stage is run as a subcommand
 .setup/setup-common.sh validate-prereqs
 ```
 
-Verifies that all required tools are installed on z/OS USS at the versions specified in `config.yaml`. This includes DBB, ZOAU, zconfig, Wazi Deploy, Java, Git, and network connectivity to GitHub.
+Verifies that the required build, deployment, runtime technologies are installed on z/OS USS at the versions specified in `config.yaml`. This includes DBB, ZOAU, zconfig, Wazi Deploy, Java, Git, and network connectivity to GitHub.
 
 ### Stage 2: Provision middleware
 
@@ -55,19 +55,20 @@ Verifies that all required tools are installed on z/OS USS at the versions speci
 
 Provisions the complete application runtime from scratch. This stage is fully automated and performs the following in sequence:
 
-1. Stops any existing Bank of Z tasks (CICS, IMS, z/OS Connect, frontend)
+1. Stops any existing Bank of Z tasks (CICS, IMS, MQ, z/OS Connect, frontend)
 2. Cleans up existing application datasets
 3. Clones the IBM DBB accelerators repository from GitHub
 4. Copies the zBuilder build framework
 5. Creates Db2 database tables
-6. Provisions a CICS region using zconfig
-7. Provisions an IMS region using zconfig
-8. Creates IMS database objects
-9. Starts IMS Bank of Z message processing regions
-10. Creates and starts a z/OS Connect server
-11. Creates and starts a frontend Liberty server
+6. Provisions an MQ queue manager using zconfig
+7. Provisions a CICS region using zconfig
+8. Provisions an IMS region using zconfig
+9. Creates IMS database objects
+10. Starts IMS Bank of Z message processing regions
+11. Creates and starts a z/OS Connect server
+12. Creates and starts a frontend Liberty server
 
-> **Note:** This stage requires a pre-existing Db2 subsystem (`DBD1`). All other middleware, including CICS, IMS, z/OS Connect, and the frontend server, is provisioned automatically.
+> **Note:** This stage requires a pre-existing Db2 subsystem (`DBD1`). All other middleware, including CICS, IMS, MQ, z/OS Connect, and the frontend server, is provisioned automatically.
 
 ### Stage 3: Build and deploy
 
@@ -77,7 +78,7 @@ Provisions the complete application runtime from scratch. This stage is fully au
 
 Builds the application from source and deploys the generated artifacts to the provisioned runtime:
 
-1. Runs a full DBB build for all application sources, including COBOL, PL/I, Assembler, BMS, Java, and z/OS Connect APIs.
+1. Performs a full application build using IBM Dependency Based Build (DBB), compiling COBOL, PL/I, Assembler, BMS, Java, and z/OS Connect APIs sources.
 2. Packages the build outputs into a deployment archive
 3. Runs Wazi Deploy to deploy the archive to the CICS and IMS environments
 4. Populates Db2 with application test data
@@ -89,7 +90,7 @@ The initial build and deployment typically take approximately 15 to 20 minutes.
 
 After the initial deployment is complete, most day-to-day development can be performed using an incremental build and deploy instead of rebuilding the entire environment.
 
-The incremental workflow rebuilds and deploys only the application components affected by your source code changes, reducing build time while preserving the existing runtime environment.
+The incremental workflow rebuilds and deploys only the application components affected by your source code changes, reducing build time while preserving the existing runtime environment. It is intended for day-to-day development activities, such as implementing enhancement or fixing defects.
 
 For more information, see:
 
